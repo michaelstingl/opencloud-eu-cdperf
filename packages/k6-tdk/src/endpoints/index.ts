@@ -1,4 +1,5 @@
 import * as api_v0_settings from './api-v0-settings'
+import * as keycloak_admin_users from './keycloak-admin-users'
 import * as dav from './dav'
 import * as dav_files from './dav-files'
 import * as dav_spaces from './dav-spaces'
@@ -17,6 +18,11 @@ import * as ocs_v2_apps_fileSharing_v1_shares from './ocs-v2-apps-file_sharing-v
 
 export * from './endpoints'
 export const endpoints = {
+  keycloak: {
+    admin: {
+      users: keycloak_admin_users
+    }
+  },
   api: {
     v0: {
       settings: api_v0_settings

@@ -1,4 +1,5 @@
 export { AuthNHTTPProvider } from './auth'
 export { BasicAuth } from './basicAuth'
 export { Keycloak } from './keycloak'
+export { KeycloakAdmin } from './keycloakAdmin'
 export { Kopano } from './kopano'

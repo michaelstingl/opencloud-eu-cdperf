@@ -1,7 +1,7 @@
 import { ENV, platformGuard } from '@opencloud-eu/k6-tdk/lib/utils'
 import { Platform } from '@opencloud-eu/k6-tdk/lib/values'
 
-import { AuthNProvider, Embedded, TestRootType } from './const'
+import { AuthNProvider, Embedded, TestRootType, UserProvider } from './const'
 
 export const envValues = () => {
   const values = {
@@ -144,6 +144,28 @@ export const envValues = () => {
         get client_id(){
           return ENV('AUTH_N_PROVIDER_KEYCLOAK_CLIENT_ID', 'web')
         }
+      }
+    },
+    seed_user_provider: {
+      get type() {
+        return UserProvider[ENV('SEED_USER_PROVIDER', UserProvider.graph)]
+      }
+    },
+    keycloak_admin: {
+      get base_url() {
+        return ENV('KEYCLOAK_ADMIN_BASE_URL', '')
+      },
+      get user() {
+        return ENV('KEYCLOAK_ADMIN_USER', 'kcadmin')
+      },
+      get password() {
+        return ENV('KEYCLOAK_ADMIN_PASSWORD', '')
+      },
+      get realm() {
+        return ENV('KEYCLOAK_ADMIN_REALM', 'opencloud')
+      },
+      get role() {
+        return ENV('KEYCLOAK_ADMIN_ROLE', 'opencloudSpaceAdmin')
       }
     },
     only_office: {

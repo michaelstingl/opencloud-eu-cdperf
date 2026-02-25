@@ -5,9 +5,11 @@ import {Options} from 'k6/options'
 import {createCalendar, createCalendarResource} from '@/mock'
 import {groupPool, userPool} from '@/pools'
 import {clientFor, shareResource} from '@/shortcuts'
+import {keycloakAdminClientFor} from '@/shortcuts/keycloakAdmin'
 import {createTestRoot} from '@/test'
 import {getPoolItems} from '@/utils'
 import {envValues} from '@/values'
+import {UserProvider} from '@/values/const'
 
 export const options: Options = {
   vus: 1,
@@ -18,9 +20,10 @@ export const options: Options = {
 export async function setup(): Promise<void> {
   const values = envValues()
   const adminClient = clientFor({userLogin: values.admin.login, userPassword: values.admin.password})
+  const useKeycloak = values.seed_user_provider.type === UserProvider.keycloak
 
   /**
-   * groups
+   * groups (always via OpenCloud Graph API)
    */
   const groupIdsOrNames: Array<string> = []
   const poolGroups = getPoolItems({pool: groupPool, n: values.seed.groups.total})
@@ -40,26 +43,57 @@ export async function setup(): Promise<void> {
   const poolUsers = getPoolItems({pool: userPool, n: values.seed.users.total})
   const userIdsOrNames: Array<string> = []
   if (values.seed.users.create) {
-    const getRolesResponse = await adminClient.role.getRoles()
-    const [appRoleId] = queryJson("$.bundles[?(@.name === 'spaceadmin')].id", getRolesResponse?.body)
+    if (useKeycloak) {
+      const kcAdmin = keycloakAdminClientFor()
 
-    const listApplicationsResponse = await adminClient.application.listApplications()
-    const [resourceId] = queryJson("$.value[?(@.displayName === 'OpenCloud')].id", listApplicationsResponse?.body)
+      // Create users in Keycloak and assign roles
+      const keycloakUserIds: Array<string> = []
+      await Promise.all(
+        poolUsers.map(async (user) => {
+          const userId = kcAdmin.createUser(user)
+          if (userId) {
+            keycloakUserIds.push(userId)
+            kcAdmin.assignRole({userId})
+          }
+        })
+      )
 
-    await Promise.all(
-      poolUsers.map(async (user) => {
-        const createUserResponse = await adminClient.user.createUser(user)
-        const [userIdOrName = user.userLogin] = queryJson('$.id', createUserResponse.body)
-        userIdsOrNames.push(userIdOrName)
+      // Trigger OIDC login for each user to auto-provision them in OpenCloud,
+      // then resolve their OpenCloud user ID via /graph/v1.0/me
+      await Promise.all(
+        poolUsers.map(async (user) => {
+          const userClient = clientFor({userLogin: user.userLogin, userPassword: user.userPassword})
+          const profileResponse = await userClient.me.getMyProfile()
+          if (profileResponse) {
+            const [ocUserId] = queryJson('$.id', profileResponse.body)
+            if (ocUserId) {
+              userIdsOrNames.push(ocUserId)
+            }
+          }
+        })
+      )
+    } else {
+      const getRolesResponse = await adminClient.role.getRoles()
+      const [appRoleId] = queryJson("$.bundles[?(@.name === 'spaceadmin')].id", getRolesResponse?.body)
 
-        await adminClient.user.enableUser({userId: user.userLogin})
-        await adminClient.role.addRoleToUser({appRoleId, resourceId, principalId: userIdOrName})
-      })
-    )
+      const listApplicationsResponse = await adminClient.application.listApplications()
+      const [resourceId] = queryJson("$.value[?(@.displayName === 'OpenCloud')].id", listApplicationsResponse?.body)
+
+      await Promise.all(
+        poolUsers.map(async (user) => {
+          const createUserResponse = await adminClient.user.createUser(user)
+          const [userIdOrName = user.userLogin] = queryJson('$.id', createUserResponse.body)
+          userIdsOrNames.push(userIdOrName)
+
+          await adminClient.user.enableUser({userId: user.userLogin})
+          await adminClient.role.addRoleToUser({appRoleId, resourceId, principalId: userIdOrName})
+        })
+      )
+    }
   }
 
   /**
-   * users <-> groups
+   * users <-> groups (via OpenCloud Graph API)
    */
   await Promise.all(userIdsOrNames.map(async (userIdOrName) => {
     await Promise.all(groupIdsOrNames.map(async (groupIdOrName) => {

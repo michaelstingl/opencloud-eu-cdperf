@@ -15,4 +15,12 @@ export const AuthNProvider = {
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export type AuthNProvider = (typeof AuthNProvider)[keyof typeof AuthNProvider];
 
+export const UserProvider = {
+  graph: 'graph',
+  keycloak: 'keycloak'
+} as const
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type UserProvider = (typeof UserProvider)[keyof typeof UserProvider];
+
 export const Embedded = 'embedded'
