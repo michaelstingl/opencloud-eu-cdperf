@@ -166,6 +166,12 @@ export const envValues = () => {
       },
       get role() {
         return ENV('KEYCLOAK_ADMIN_ROLE', 'opencloudSpaceAdmin')
+      },
+      // For realms with registrationEmailAsUsername=true: send the email
+      // as the Keycloak username and have the user pool promote bare names
+      // to email-shaped logins so OIDC sign-in still matches.
+      get use_email_as_username() {
+        return ENV('KEYCLOAK_ADMIN_USE_EMAIL_AS_USERNAME', 'false') === 'true'
       }
     },
     only_office: {
